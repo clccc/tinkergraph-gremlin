@@ -124,7 +124,7 @@ public abstract class SpecializedTinkerVertex extends TinkerVertex {
 
             Long idValue = (Long) graph.edgeIdManager.convert(ElementHelper.getIdValue(keyValues).orElse(null));
             if (null != idValue) {
-                if (edgeIdAlreadyExists(idValue))
+                if (graph.edges.containsKey(idValue))
                     throw Graph.Exceptions.edgeWithIdAlreadyExists(idValue);
             } else {
                 idValue = (Long) graph.edgeIdManager.getNextId(graph);
@@ -137,15 +137,15 @@ public abstract class SpecializedTinkerVertex extends TinkerVertex {
             SpecializedTinkerEdge edge = factory.createEdge(idValue, graph, (long) outVertex.id, (long) inVertex.id);
             ElementHelper.attachProperties(edge, keyValues);
             if (graph.ondiskOverflowEnabled) {
-                graph.getElementIdsByLabel(graph.edgeIdsByLabel, label).add(idValue);
+                graph.getElementRefsByLabel(graph.edgeIdsByLabel, label).add(idValue);
                 graph.edgeCache.put(idValue, edge);
             } else {
                 graph.edges.put(idValue, edge);
             }
 
             acquireModificationLock();
-            this.addSpecializedOutEdge(edge.label(), (Long) edge.id());
-            ((SpecializedTinkerVertex) inVertex).addSpecializedInEdge(edge.label(), (Long) edge.id());
+            this.addSpecializedOutEdge(edge.label(), edge);
+            ((SpecializedTinkerVertex) inVertex).addSpecializedInEdge(edge.label(), edge);
             releaseModificationLock();
             this.modifiedSinceLastSerialization = true;
             return edge;
@@ -159,26 +159,13 @@ public abstract class SpecializedTinkerVertex extends TinkerVertex {
         }
     }
 
-    private boolean edgeIdAlreadyExists(Long idValue) {
-        if (!graph.ondiskOverflowEnabled) {
-            return graph.edges.containsKey(idValue);
-        } else {
-            for (TLongSet ids : graph.edgeIdsByLabel.values()) {
-                if (ids.contains(idValue.longValue())) {
-                    return true;
-                }
-            }
-            return false;
-        }
-    }
+    /** do not call directly (other than from deserializer)
+     *  I whish there was an easy way to forbid this in java */
+    public abstract void addSpecializedOutEdge(String edgeLabel, Edge edge);
 
     /** do not call directly (other than from deserializer)
      *  I whish there was an easy way to forbid this in java */
-    public abstract void addSpecializedOutEdge(String edgeLabel, long edgeId);
-
-    /** do not call directly (other than from deserializer)
-     *  I whish there was an easy way to forbid this in java */
-    public abstract void addSpecializedInEdge(String edgeLabel, long edgeId);
+    public abstract void addSpecializedInEdge(String edgeLabel, Edge edge);
 
     @Override
     public Iterator<Edge> edges(final Direction direction, final String... edgeLabels) {

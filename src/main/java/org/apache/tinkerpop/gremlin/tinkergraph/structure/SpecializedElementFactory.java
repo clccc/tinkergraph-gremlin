@@ -31,7 +31,7 @@ public class SpecializedElementFactory {
 
     public interface ForEdge<T extends SpecializedTinkerEdge> {
         public abstract String forLabel();
-        public abstract T createEdge(Long id, TinkerGraph graph, Long outVertexId, Long inVertexId);
+        public abstract T createEdge(Long id, TinkerGraph graph, Vertex outVertex, Vertex inVertex);
     }
 }
 

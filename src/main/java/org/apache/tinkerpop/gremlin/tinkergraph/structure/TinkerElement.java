@@ -18,22 +18,31 @@
  */
 package org.apache.tinkerpop.gremlin.tinkergraph.structure;
 
-import org.apache.tinkerpop.gremlin.structure.Edge;
 import org.apache.tinkerpop.gremlin.structure.Element;
 import org.apache.tinkerpop.gremlin.structure.util.ElementHelper;
 
-/**
- * @author Marko A. Rodriguez (http://markorodriguez.com)
- */
 public abstract class TinkerElement implements Element {
 
-    protected final Object id;
+    protected final Object id; //TODO restrict to `long` only
     protected final String label;
     protected boolean removed = false;
 
     protected TinkerElement(final Object id, final String label) {
         this.id = id;
         this.label = label;
+        if (tinkergraph().softReferenceManager != null)
+            tinkergraph().softReferenceManager.register(this);
+    }
+
+    protected TinkerGraph tinkergraph() {
+        return (TinkerGraph) graph();
+    }
+
+    @Override
+    protected void finalize() throws Throwable {
+        super.finalize();
+        if (tinkergraph().softReferenceManager != null)
+            tinkergraph().softReferenceManager.notifyObjectFinalized(this);
     }
 
     @Override

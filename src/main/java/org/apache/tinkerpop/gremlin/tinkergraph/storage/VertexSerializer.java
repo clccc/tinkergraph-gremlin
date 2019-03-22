@@ -20,16 +20,12 @@ package org.apache.tinkerpop.gremlin.tinkergraph.storage;
 
 import gnu.trove.iterator.TLongIterator;
 import gnu.trove.set.TLongSet;
-import org.apache.commons.collections.IteratorUtils;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.tinkerpop.gremlin.structure.Direction;
-import org.apache.tinkerpop.gremlin.structure.Edge;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.apache.tinkerpop.gremlin.structure.VertexProperty;
 import org.apache.tinkerpop.gremlin.structure.util.ElementHelper;
-import org.apache.tinkerpop.gremlin.tinkergraph.structure.SpecializedElementFactory;
-import org.apache.tinkerpop.gremlin.tinkergraph.structure.SpecializedTinkerVertex;
-import org.apache.tinkerpop.gremlin.tinkergraph.structure.TinkerGraph;
+import org.apache.tinkerpop.gremlin.tinkergraph.structure.*;
 import org.msgpack.core.MessageBufferPacker;
 import org.msgpack.core.MessagePack;
 import org.msgpack.core.MessageUnpacker;
@@ -37,7 +33,7 @@ import org.msgpack.core.MessageUnpacker;
 import java.io.IOException;
 import java.util.*;
 
-public class VertexSerializer extends Serializer<Vertex> {
+public class VertexSerializer extends Serializer<TinkerVertex> {
 
   protected final TinkerGraph graph;
   protected final Map<String, SpecializedElementFactory.ForVertex> vertexFactoryByLabel;
@@ -48,7 +44,7 @@ public class VertexSerializer extends Serializer<Vertex> {
   }
 
   @Override
-  public byte[] serialize(Vertex vertex) throws IOException {
+  public byte[] serialize(TinkerVertex vertex) throws IOException {
     MessageBufferPacker packer = MessagePack.newDefaultBufferPacker();
     ((SpecializedTinkerVertex) vertex).acquireModificationLock();
     packer.packLong((Long) vertex.id());
@@ -86,7 +82,7 @@ public class VertexSerializer extends Serializer<Vertex> {
   }
 
   @Override
-  public SpecializedTinkerVertex deserialize(byte[] bytes) throws IOException {
+  public TinkerVertex deserialize(byte[] bytes) throws IOException {
     if (null == bytes)
       return null;
 
@@ -108,14 +104,14 @@ public class VertexSerializer extends Serializer<Vertex> {
     inEdgeIdsByLabel.entrySet().stream().forEach(entry -> {
       String edgeLabel = entry.getKey();
       for (long edgeId : entry.getValue()) {
-        vertex.addSpecializedInEdge(edgeLabel, edgeId);
+        vertex.addSpecializedInEdge(edgeLabel, new EdgeRef(edgeId, graph));
       }
     });
 
     outEdgeIdsByLabel.entrySet().stream().forEach(entry -> {
       String edgeLabel = entry.getKey();
       for (long edgeId : entry.getValue()) {
-        vertex.addSpecializedOutEdge(edgeLabel, edgeId);
+        vertex.addSpecializedOutEdge(edgeLabel, new EdgeRef(edgeId, graph));
       }
     });
 

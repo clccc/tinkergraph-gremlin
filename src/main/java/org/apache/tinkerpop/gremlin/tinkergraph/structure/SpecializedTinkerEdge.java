@@ -33,14 +33,8 @@ public abstract class SpecializedTinkerEdge extends TinkerEdge {
 
     private final Set<String> specificKeys;
 
-    //using ids instead of hard references, so we can use disk storage
-    public final long outVertexId;
-    public final long inVertexId;
-
-    protected SpecializedTinkerEdge(TinkerGraph graph, Long id, long outVertexId, String label, long inVertexId, Set<String> specificKeys) {
-        super(graph, id, null, label, null);
-        this.outVertexId = outVertexId;
-        this.inVertexId = inVertexId;
+    protected SpecializedTinkerEdge(TinkerGraph graph, Long id, Vertex outVertex, String label, Vertex inVertex, Set<String> specificKeys) {
+        super(graph, id, outVertex, label, inVertex);
         this.specificKeys = specificKeys;
     }
 
@@ -112,6 +106,7 @@ public abstract class SpecializedTinkerEdge extends TinkerEdge {
         TinkerHelper.removeElementIndex(this);
         graph.edges.remove(id);
         if (graph.ondiskOverflowEnabled) {
+            graph.ondiskOverflow.removeEdge(id);
             graph.edgeIdsByLabel.get(label()).remove(id);
             graph.onDiskEdgeOverflow.remove(id);
             graph.edgeCache.remove(id);
@@ -121,22 +116,6 @@ public abstract class SpecializedTinkerEdge extends TinkerEdge {
         this.removed = true;
         modifiedSinceLastSerialization = true;
         releaseModificationLock();
-    }
-
-    @Override
-    /** adaptation of `StringFactory.edgeString` to cover the fact that we hold the IDs rather than hard references */
-    public String toString() {
-        return "e[" + id() + "]" + "[" + outVertexId + "-" + label + "->" + inVertexId + "]";
-    }
-
-    @Override
-    public Vertex outVertex() {
-        return graph.vertexById(this.outVertexId);
-    }
-
-    @Override
-    public Vertex inVertex() {
-        return graph.vertexById(this.inVertexId);
     }
 
     public void setModifiedSinceLastSerialization(boolean modifiedSinceLastSerialization) {
