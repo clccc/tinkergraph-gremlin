@@ -48,7 +48,7 @@ public class TinkerVertex extends TinkerElement implements Vertex {
     final protected TinkerGraph graph;
 
     protected TinkerVertex(final Object id, final String label, final TinkerGraph graph) {
-        super(id, label);
+        super(id, label, graph);
         this.graph = graph;
     }
 

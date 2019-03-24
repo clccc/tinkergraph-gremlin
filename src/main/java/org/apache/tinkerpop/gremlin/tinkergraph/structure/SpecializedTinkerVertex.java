@@ -198,9 +198,10 @@ public abstract class SpecializedTinkerVertex extends TinkerVertex {
             getInEdgesByLabel().values().forEach(edges -> multiIterator.addIterator(edges.iterator()));
         } else {
             for (String label : edgeLabels) {
-                if (direction.equals(Direction.OUT) || direction.equals(Direction.BOTH)) {
+                /* note: usage of `==` (pointer comparison) over `.equals` (String content comparison) is intentional for performance - use the statically defined strings */
+                if (direction == Direction.OUT || direction == Direction.BOTH) {
                     multiIterator.addIterator(getOutEdgesByLabel().get(label).iterator());
-                } else if (direction.equals(Direction.IN) || direction.equals(Direction.BOTH)) {
+                } else if (direction == Direction.IN || direction == Direction.BOTH) {
                     multiIterator.addIterator(getInEdgesByLabel().get(label).iterator());
                 }
             }

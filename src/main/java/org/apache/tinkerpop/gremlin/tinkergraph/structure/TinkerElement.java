@@ -19,30 +19,39 @@
 package org.apache.tinkerpop.gremlin.tinkergraph.structure;
 
 import org.apache.tinkerpop.gremlin.structure.Element;
+import org.apache.tinkerpop.gremlin.structure.Graph;
 import org.apache.tinkerpop.gremlin.structure.util.ElementHelper;
 
 public abstract class TinkerElement implements Element {
 
     protected final Object id; //TODO restrict to `long` only
     protected final String label;
+    protected final TinkerGraph graph;
     protected boolean removed = false;
 
-    protected TinkerElement(final Object id, final String label) {
+    protected TinkerElement(final Object id, final String label, final TinkerGraph graph) {
         this.id = id;
         this.label = label;
-        if (tinkergraph().softReferenceManager != null)
-            tinkergraph().softReferenceManager.register(this);
+        this.graph = graph;
+        if (graph.softReferenceManager != null)
+            graph.softReferenceManager.register(this);
     }
 
-    protected TinkerGraph tinkergraph() {
-        return (TinkerGraph) graph();
+    @Override
+    public Graph graph() {
+        return graph;
     }
+
+    public TinkerGraph tinkerGraph() {
+        return graph;
+    }
+
 
     @Override
     protected void finalize() throws Throwable {
         super.finalize();
-        if (tinkergraph().softReferenceManager != null)
-            tinkergraph().softReferenceManager.notifyObjectFinalized(this);
+        if (graph.softReferenceManager != null)
+            graph.softReferenceManager.notifyObjectFinalized(this);
     }
 
     @Override

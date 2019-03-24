@@ -37,6 +37,8 @@ public class Artist extends SpecializedTinkerVertex {
 
     public static final String NAME = "name";
     public static final Set<String> SPECIFIC_KEYS = new HashSet<>(Arrays.asList(NAME));
+    public static final Set<String> ALLOWED_OUT_EDGE_LABELS = new HashSet<>();
+    public static final Set<String> ALLOWED_IN_EDGE_LABELS = new HashSet<>(Arrays.asList("sungBy", "writtenBy"));
 
     // properties
     private String name;
@@ -47,7 +49,22 @@ public class Artist extends SpecializedTinkerVertex {
     private TLongSet writtenByIn = new TLongHashSet();
 
     public Artist(Long id, TinkerGraph graph) {
-        super(id, Artist.label, graph, SPECIFIC_KEYS);
+        super(id, Artist.label, graph);
+    }
+
+    @Override
+    protected Set<String> specificKeys() {
+        return SPECIFIC_KEYS;
+    }
+
+    @Override
+    public Set<String> allowedOutEdgeLabels() {
+        return ALLOWED_OUT_EDGE_LABELS;
+    }
+
+    @Override
+    public Set<String> allowedInEdgeLabels() {
+        return ALLOWED_IN_EDGE_LABELS;
     }
 
     /* note: usage of `==` (pointer comparison) over `.equals` (String content comparison) is intentional for performance - use the statically defined strings */
@@ -80,67 +97,6 @@ public class Artist extends SpecializedTinkerVertex {
             throw new RuntimeException("property with key=" + key + " not (yet) supported by " + this.getClass().getName());
         }
     }
-
-    /* note: usage of `==` (pointer comparison) over `.equals` (String content comparison) is intentional for performance - use the statically defined strings */
-    @Override
-    protected Iterator<Edge> specificEdges(Direction direction, String... edgeLabels) {
-        List<Iterator<?>> iterators = new LinkedList<>();
-        if (edgeLabels.length == 0) {
-            edgeLabels = ALL_EDGES;
-        }
-        for (String label : edgeLabels) {
-            if (label == WrittenBy.label) {
-                if (direction == Direction.IN || direction == Direction.BOTH) {
-                    iterators.add(getWrittenByIn());
-                }
-            } else if (label == SungBy.label) {
-                if (direction == Direction.IN || direction == Direction.BOTH) {
-                    iterators.add(getSungByIn());
-                }
-            }
-        }
-
-        Iterator<Edge>[] iteratorsArray = iterators.toArray(new Iterator[iterators.size()]);
-        return IteratorUtils.concat(iteratorsArray);
-    }
-
-
-    @Override
-    public void storeOutEdge(SpecializedTinkerEdge edge) {
-        throw new IllegalArgumentException("edge type " + edge.getClass() + " not supported");
-    }
-
-    @Override
-    public void addSpecializedInEdge(SpecializedTinkerEdge edge) {
-        if (edge instanceof WrittenBy) {
-            writtenByIn.add((Long) edge.id());
-        } else if (edge instanceof SungBy) {
-            sungByIn.add((Long) edge.id());
-        } else {
-            throw new IllegalArgumentException("edge type " + edge.getClass() + " not supported");
-        }
-    }
-
-    @Override
-    public void removeSpecializedOutEdge(SpecializedTinkerEdge edge) {
-        throw new IllegalArgumentException("edge type " + edge.getClass() + " not supported");
-    }
-
-    @Override
-    public void removeSpecializedInEdge(SpecializedTinkerEdge edge) {
-        if (edge instanceof WrittenBy) {
-            if (writtenByIn != null) {
-                writtenByIn.remove(edge.id());
-            }
-        } else if (edge instanceof SungBy) {
-            if (sungByIn != null) {
-                sungByIn.remove(edge.id());
-            }
-        } else {
-            throw new IllegalArgumentException("edge type " + edge.getClass() + " not supported");
-        }
-    }
-
 
     public static SpecializedElementFactory.ForVertex<Artist> factory = new SpecializedElementFactory.ForVertex<Artist>() {
         @Override
