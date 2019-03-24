@@ -95,27 +95,8 @@ public abstract class SpecializedTinkerEdge extends TinkerEdge {
 
     @Override
     public void remove() {
-        acquireModificationLock();
-        final SpecializedTinkerVertex outVertex = (SpecializedTinkerVertex) this.outVertex();
-        final SpecializedTinkerVertex inVertex = (SpecializedTinkerVertex) this.inVertex();
-
-        Long id = (Long) this.id();
-        outVertex.removeOutEdge(id);
-        inVertex.removeInEdge(id);
-
-        TinkerHelper.removeElementIndex(this);
-        graph.edges.remove(id);
-        if (graph.ondiskOverflowEnabled) {
-            graph.ondiskOverflow.removeEdge(id);
-            graph.edgeIdsByLabel.get(label()).remove(id);
-            graph.onDiskEdgeOverflow.remove(id);
-            graph.edgeCache.remove(id);
-        }
-
-        this.properties = null;
-        this.removed = true;
+        super.remove();
         modifiedSinceLastSerialization = true;
-        releaseModificationLock();
     }
 
     public void setModifiedSinceLastSerialization(boolean modifiedSinceLastSerialization) {

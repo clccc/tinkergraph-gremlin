@@ -27,7 +27,6 @@ import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.apache.tinkerpop.gremlin.structure.util.ElementHelper;
 import org.apache.tinkerpop.gremlin.structure.util.StringFactory;
 import org.apache.tinkerpop.gremlin.util.iterator.IteratorUtils;
-import org.ehcache.sizeof.annotations.IgnoreSizeOf;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -94,7 +93,12 @@ public class TinkerEdge extends TinkerElement implements Edge {
         }
 
         TinkerHelper.removeElementIndex(this);
-        ((TinkerGraph) this.graph()).edges.remove(this.id());
+        graph.edges.remove(id);
+        graph.getElementsByLabel(graph.edgesByLabel, label).remove(this);
+        if (graph.ondiskOverflowEnabled) {
+            graph.ondiskOverflow.removeEdge((Long) id);
+        }
+
         this.properties = null;
         this.removed = true;
     }

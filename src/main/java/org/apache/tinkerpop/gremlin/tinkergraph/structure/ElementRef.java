@@ -2,6 +2,8 @@ package org.apache.tinkerpop.gremlin.tinkergraph.structure;
 
 import java.io.IOException;
 import java.lang.ref.SoftReference;
+import org.apache.tinkerpop.gremlin.structure.Element;
+import org.apache.tinkerpop.gremlin.structure.Graph;
 
 /**
  * Softly referencing element, so that the garbage collector can clear the element if we're running
@@ -9,19 +11,23 @@ import java.lang.ref.SoftReference;
  * elsewhere.
  * @see org.apache.tinkerpop.gremlin.tinkergraph.storage.SoftReferenceManager
  */
-public abstract class ElementRef<E extends TinkerElement> {
+public abstract class ElementRef<E extends Element> implements Element {
   public final long id;
+  public final String label;
+
   protected final TinkerGraph graph;
   protected SoftReference<E> softReference;
 
   public ElementRef(E element) {
     this.id = (long) element.id();
-    this.softReference = new SoftReference<>(element);
+    this.label = element.label();
     this.graph = (TinkerGraph) element.graph();
+    this.softReference = new SoftReference<>(element);
   }
 
-  protected ElementRef(final long id, final TinkerGraph graph) {
+  protected ElementRef(final long id, final String label, final TinkerGraph graph) {
     this.id = id;
+    this.label = label;
     this.graph = graph;
   }
 
@@ -41,4 +47,38 @@ public abstract class ElementRef<E extends TinkerElement> {
   }
 
   protected abstract E readFromDisk(long elementId) throws IOException;
+
+  @Override
+  public Object id() {
+    return id;
+  }
+
+  @Override
+  public Graph graph() {
+    return graph;
+  }
+
+  @Override
+  public String label() {
+    return label;
+  }
+
+  // delegate methods start
+
+  @Override
+  public void remove() {
+    this.get().remove();
+  }
+
+  @Override
+  public int hashCode() {
+    return get().hashCode();
+  }
+
+  @Override
+  public boolean equals(final Object obj) {
+    return get().equals(obj);
+  }
+  // delegate methods end
+
 }

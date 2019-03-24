@@ -5,21 +5,22 @@ import org.apache.tinkerpop.gremlin.structure.*;
 import java.io.IOException;
 import java.util.Iterator;
 
-public class VertexRef extends ElementRef<TinkerVertex> implements Vertex {
+public class VertexRef extends ElementRef<Vertex> implements Vertex {
 
-  public VertexRef(SpecializedTinkerVertex vertex) {
+  public VertexRef(Vertex vertex) {
     super(vertex);
   }
 
-  public VertexRef(final long vertexId, final TinkerGraph graph) {
-    super(vertexId, graph);
+  public VertexRef(final long vertexId, final String label, final TinkerGraph graph) {
+    super(vertexId, label, graph);
   }
 
   @Override
-  protected TinkerVertex readFromDisk(final long vertexId) throws IOException {
-    return (TinkerVertex) graph.ondiskOverflow.readVertex(vertexId);
+  protected Vertex readFromDisk(final long vertexId) throws IOException {
+    return graph.ondiskOverflow.readVertex(vertexId);
   }
 
+  // delegate methods start
   @Override
   public Edge addEdge(String label, Vertex inVertex, Object... keyValues) {
     return this.get().addEdge(label, inVertex, keyValues);
@@ -44,24 +45,5 @@ public class VertexRef extends ElementRef<TinkerVertex> implements Vertex {
   public Iterator<Vertex> vertices(Direction direction, String... edgeLabels) {
     return this.get().vertices(direction, edgeLabels);
   }
-
-  @Override
-  public Object id() {
-    return this.get().id();
-  }
-
-  @Override
-  public String label() {
-    return this.get().label();
-  }
-
-  @Override
-  public Graph graph() {
-    return this.get().graph();
-  }
-
-  @Override
-  public void remove() {
-    this.get().remove();
-  }
+  // delegate methods end
 }

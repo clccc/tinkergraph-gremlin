@@ -20,7 +20,6 @@ package org.apache.tinkerpop.gremlin.tinkergraph.structure;
 
 import gnu.trove.iterator.TLongIterator;
 import gnu.trove.map.hash.THashMap;
-import gnu.trove.set.TLongSet;
 import gnu.trove.set.hash.THashSet;
 import org.apache.commons.configuration.BaseConfiguration;
 import org.apache.commons.configuration.Configuration;
@@ -53,7 +52,6 @@ import org.apache.tinkerpop.gremlin.util.iterator.IteratorUtils;
 import org.apache.tinkerpop.gremlin.util.iterator.MultiIterator;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -103,6 +101,8 @@ public final class TinkerGraph implements Graph {
     // note: if on-disk overflow enabled, these [Vertex|Edge] values are [VertexRef|ElementRef]
     protected Map<Object, Vertex> vertices = new ConcurrentHashMap<>();
     protected Map<Object, Edge> edges = new ConcurrentHashMap<>();
+    protected final THashMap<String, Set<Vertex>> verticesByLabel = new THashMap<>(100);
+    protected final THashMap<String, Set<Edge>> edgesByLabel = new THashMap<>(100);
 
     protected TinkerGraphVariables variables = null;
     protected TinkerGraphComputerView graphComputerView = null;
@@ -117,16 +117,13 @@ public final class TinkerGraph implements Graph {
     protected final boolean usesSpecializedElements;
     protected final Map<String, SpecializedElementFactory.ForVertex> specializedVertexFactoryByLabel = new HashMap();
     protected final Map<String, SpecializedElementFactory.ForEdge> specializedEdgeFactoryByLabel = new HashMap();
-    // TODO: also use for generic elements
-    // note: if on-disk overflow enabled, these [Vertex|Edge] values are [VertexRef|ElementRef]
-    protected final THashMap<String, Set<Vertex>> verticesByLabel = new THashMap<>(100);
-    protected final THashMap<String, Set<Edge>> edgesByLabel = new THashMap<>(100);
 
     private final Configuration configuration;
     private final String graphLocation;
     private final String graphFormat;
 
     /* overflow to disk: elements are serialized on eviction from on-heap cache - off by default */
+    // TODO: also allow using for generic elements
     public final boolean ondiskOverflowEnabled;
     protected OndiskOverflow ondiskOverflow;
     protected SoftReferenceManager softReferenceManager;
@@ -207,42 +204,14 @@ public final class TinkerGraph implements Graph {
         return tg;
     }
 
-    public Edge edgeById(long id) {
-        if (ondiskOverflowEnabled)
-            return getElementFromCache(id, edgeCache, onDiskEdgeOverflow, edgeSerializer);
-        else
-            return edges.get(id);
-    }
-
-    public Iterator<Edge> edgesById(TLongIterator ids) {
-        if (ondiskOverflowEnabled) {
-            return createElementIteratorForCached(edgeCache, onDiskEdgeOverflow, edgeSerializer, ids);
-        } else {
-            return new Iterator<Edge>() {
-                @Override
-                public boolean hasNext() {
-                    return ids.hasNext();
-                }
-                @Override
-                public Edge next() {
-                    return edgeById(ids.next());
-                }
-            };
-        }
-    }
-
-    public Vertex vertexById(long id) {
-        return vertices.get(id);
-    }
-
     ////////////// STRUCTURE API METHODS //////////////////
 
     @Override
     public Vertex addVertex(final Object... keyValues) {
         ElementHelper.legalPropertyKeyValueArray(keyValues);
-        Long idValue = (Long) vertexIdManager.convert(ElementHelper.getIdValue(keyValues).orElse(null));
         final String label = ElementHelper.getLabelValue(keyValues).orElse(Vertex.DEFAULT_LABEL);
 
+        Long idValue = (Long) vertexIdManager.convert(ElementHelper.getIdValue(keyValues).orElse(null));
         if (null != idValue) {
             if (vertices.containsKey(idValue))
                 throw Exceptions.vertexWithIdAlreadyExists(idValue);
@@ -251,26 +220,30 @@ public final class TinkerGraph implements Graph {
         }
         currentId.set(Long.max(idValue, currentId.get()));
 
+        final Vertex vertex = createVertex(idValue, label, keyValues);
+        vertices.put(vertex.id(), vertex);
+        getElementsByLabel(verticesByLabel, label).add(vertex);
+        return vertex;
+    }
+
+    private Vertex createVertex(final long idValue, final String label, final Object... keyValues) {
+        final Vertex vertex;
         if (specializedVertexFactoryByLabel.containsKey(label)) {
-            SpecializedElementFactory.ForVertex factory = specializedVertexFactoryByLabel.get(label);
-            SpecializedTinkerVertex vertex = factory.createVertex(idValue, this);
-            ElementHelper.attachProperties(vertex, VertexProperty.Cardinality.list, keyValues);
-            if (ondiskOverflowEnabled) {
-                getElementRefsByLabel(vertexIdsByLabel, label).add(idValue);
-                vertexCache.put(idValue, vertex);
-            } else {
-                vertices.put(idValue, vertex);
-            }
-            return vertex;
+            vertex = specializedVertexFactoryByLabel.get(label).createVertex(idValue, this);
         } else { // vertex label not registered for a specialized factory, treating as generic vertex
             if (this.usesSpecializedElements) {
                 throw new IllegalArgumentException(
-                    "this instance of TinkerGraph uses specialized elements, but doesn't have a factory for label " + label
+                  "this instance of TinkerGraph uses specialized elements, but doesn't have a factory for label " + label
                     + ". Mixing specialized and generic elements is not (yet) supported");
             }
-            final Vertex vertex = new TinkerVertex(idValue, label, this);
-            this.vertices.put(vertex.id(), vertex);
-            ElementHelper.attachProperties(vertex, VertexProperty.Cardinality.list, keyValues);
+            vertex = new TinkerVertex(idValue, label, this);
+        }
+        ElementHelper.attachProperties(vertex, VertexProperty.Cardinality.list, keyValues);
+
+        if (ondiskOverflowEnabled) {
+            // ensure we use soft references that can be cleared when memory is low
+            return new VertexRef(vertex);
+        } else {
             return vertex;
         }
     }
@@ -309,20 +282,6 @@ public final class TinkerGraph implements Graph {
         return StringFactory.graphString(this, "vertices: " + vertices.size() + ", edges: " + edges.size());
     }
 
-    public void clear() {
-        this.vertices.clear();
-        this.verticesByLabel.clear();
-        this.edges.clear();
-        this.edgeIdsByLabel.clear();
-        this.onDiskVertexOverflow.clear();
-        this.onDiskEdgeOverflow.clear();
-        this.variables = null;
-        this.currentId.set(-1L);
-        this.vertexIndex = null;
-        this.edgeIndex = null;
-        this.graphComputerView = null;
-    }
-
     /**
      * This method only has an effect if the {@link #GREMLIN_TINKERGRAPH_GRAPH_LOCATION} is set, in which case the
      * data in the graph is persisted to that location. This method may be called multiple times and does not release
@@ -348,51 +307,36 @@ public final class TinkerGraph implements Graph {
 
     @Override
     public Iterator<Vertex> vertices(final Object... ids) {
-        if (usesSpecializedElements && ondiskOverflowEnabled) {
-          return createElementIteratorForCached(vertexCache, onDiskVertexOverflow, vertexSerializer, idsIterator(vertexIdsByLabel, ids));
-        } else {
-          return createElementIterator(Vertex.class, vertices, vertexIdManager, ids);
-        }
+        return createElementIterator(Vertex.class, vertices, vertexIdManager, ids);
     }
 
     public Iterator<Vertex> verticesByLabel(final P<String> labelPredicate) {
-        if (usesSpecializedElements && ondiskOverflowEnabled) {
-            TLongIterator idsIterator = elementRefsByLabel(vertexIdsByLabel, labelPredicate);
-            return createElementIteratorForCached(vertexCache, onDiskVertexOverflow, vertexSerializer, idsIterator);
-        } else {
-            throw new NotImplementedException("verticesWithLabel only implemented for specialized elements with ondisk overflow");
-        }
+        return elementsByLabel(verticesByLabel, labelPredicate);
     }
 
     @Override
     public Iterator<Edge> edges(final Object... ids) {
-      if (usesSpecializedElements && ondiskOverflowEnabled) {
-          return createElementIteratorForCached(edgeCache, onDiskEdgeOverflow, edgeSerializer, idsIterator(edgeIdsByLabel, ids));
-      } else {
         return createElementIterator(Edge.class, edges, edgeIdManager, ids);
-      }
     }
 
-    public Iterator<ElementRef<TinkerEdge>> edgesByLabel(final P<String> labelPredicate) {
-        if (usesSpecializedElements && ondiskOverflowEnabled) {
-            TLongIterator idsIterator = elementRefsByLabel(edgeRefsByLabel, labelPredicate);
-            return createElementIteratorForCached(edgeCache, onDiskEdgeOverflow, edgeSerializer, idsIterator);
-        } else {
-            throw new NotImplementedException("edgesWithLabel only implemented for specialized elements with ondisk overflow");
-        }
+    public Iterator<Edge> edgesByLabel(final P<String> labelPredicate) {
+        return elementsByLabel(edgesByLabel, labelPredicate);
     }
 
-    protected <E extends TinkerElement> Set<ElementRef<E>> getElementRefsByLabel(final THashMap<String, Set<ElementRef<E>>> elementRefsByLabel, final String label) {
-        if (!elementRefsByLabel.containsKey(label))
-            elementRefsByLabel.put(label, new THashSet<>(100000));
-        return elementRefsByLabel.get(label);
+    /**
+     * retrieve the correct by-label map (and create it if it doesn't yet exist)
+     */
+    protected <E extends Element> Set<E> getElementsByLabel(final THashMap<String, Set<E>> elementsByLabel, final String label) {
+        if (!elementsByLabel.containsKey(label))
+            elementsByLabel.put(label, new THashSet<>(100000));
+        return elementsByLabel.get(label);
     }
 
-    protected <E extends TinkerElement> Iterator<ElementRef<E>> elementRefsByLabel(final THashMap<String, Set<ElementRef<E>>> elementRefsByLabel, final P<String> labelPredicate) {
-        final MultiIterator<ElementRef<E>> multiIterator = new MultiIterator<>();
-        for (String label : elementRefsByLabel.keySet()) {
+    protected <E extends Element> Iterator<E> elementsByLabel(final THashMap<String, Set<E>> elementsByLabel, final P<String> labelPredicate) {
+        final MultiIterator<E> multiIterator = new MultiIterator<>();
+        for (String label : elementsByLabel.keySet()) {
             if (labelPredicate.test(label)) {
-                multiIterator.addIterator(elementRefsByLabel.get(label).iterator());
+                multiIterator.addIterator(elementsByLabel.get(label).iterator());
             }
         }
         return multiIterator;

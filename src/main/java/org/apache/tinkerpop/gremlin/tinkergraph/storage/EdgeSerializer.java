@@ -18,6 +18,7 @@
  */
 package org.apache.tinkerpop.gremlin.tinkergraph.storage;
 
+import org.apache.tinkerpop.gremlin.structure.Edge;
 import org.apache.tinkerpop.gremlin.structure.util.ElementHelper;
 import org.apache.tinkerpop.gremlin.tinkergraph.structure.*;
 import org.msgpack.core.MessageBufferPacker;
@@ -27,7 +28,7 @@ import org.msgpack.core.MessageUnpacker;
 import java.io.IOException;
 import java.util.Map;
 
-public class EdgeSerializer extends Serializer<TinkerEdge> {
+public class EdgeSerializer extends Serializer<Edge> {
 
   protected final TinkerGraph graph;
   protected final Map<String, SpecializedElementFactory.ForEdge> edgeFactoryByLabel;
@@ -38,13 +39,15 @@ public class EdgeSerializer extends Serializer<TinkerEdge> {
   }
 
   @Override
-  public byte[] serialize(TinkerEdge edge) throws IOException {
+  public byte[] serialize(Edge edge) throws IOException {
     MessageBufferPacker packer = MessagePack.newDefaultBufferPacker();
     packer.packLong((Long) edge.id());
     packer.packString(edge.label());
     packProperties(packer, edge.properties());
     packer.packLong((Long) edge.outVertex().id());
+    packer.packString(edge.outVertex().label());
     packer.packLong((Long) edge.inVertex().id());
+    packer.packString(edge.inVertex().label());
 
     return packer.toByteArray();
   }
@@ -57,9 +60,11 @@ public class EdgeSerializer extends Serializer<TinkerEdge> {
     String label = unpacker.unpackString();
     Object[] keyValues = unpackProperties(unpacker.unpackValue().asMapValue().map());
     long outVertexId = unpacker.unpackLong();
+    String outVertexLabel = unpacker.unpackString();
     long inVertexId = unpacker.unpackLong();
-    VertexRef outVertexRef = new VertexRef(outVertexId, graph);
-    VertexRef inVertexRef = new VertexRef(inVertexId, graph);
+    String inVertexLabel = unpacker.unpackString();
+    VertexRef outVertexRef = new VertexRef(outVertexId, outVertexLabel, graph);
+    VertexRef inVertexRef = new VertexRef(inVertexId, inVertexLabel, graph);
 
     // TODO support generic edges too
     SpecializedTinkerEdge edge = edgeFactoryByLabel.get(label).createEdge(id, graph, outVertexRef, inVertexRef);

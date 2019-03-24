@@ -18,8 +18,6 @@
  */
 package org.apache.tinkerpop.gremlin.tinkergraph.structure;
 
-import gnu.trove.iterator.TLongIterator;
-import gnu.trove.set.TLongSet;
 import org.apache.tinkerpop.gremlin.structure.*;
 import org.apache.tinkerpop.gremlin.structure.util.ElementHelper;
 import org.apache.tinkerpop.gremlin.util.iterator.IteratorUtils;
@@ -111,8 +109,8 @@ public abstract class SpecializedTinkerVertex extends TinkerVertex {
     protected abstract void removeSpecificProperty(String key);
 
     @Override
-    public Edge addEdge(String label, Vertex vertex, Object... keyValues) {
-        if (null == vertex) {
+    public Edge addEdge(String label, Vertex inVertex, Object... keyValues) {
+        if (null == inVertex) {
             throw Graph.Exceptions.argumentCanNotBeNull("inVertex");
         }
         if (this.removed) {
@@ -120,8 +118,9 @@ public abstract class SpecializedTinkerVertex extends TinkerVertex {
         }
 
         if (graph.specializedEdgeFactoryByLabel.containsKey(label)) {
-            SpecializedElementFactory.ForEdge factory = graph.specializedEdgeFactoryByLabel.get(label);
+            ElementHelper.legalPropertyKeyValueArray(keyValues);
 
+            SpecializedElementFactory.ForEdge factory = graph.specializedEdgeFactoryByLabel.get(label);
             Long idValue = (Long) graph.edgeIdManager.convert(ElementHelper.getIdValue(keyValues).orElse(null));
             if (null != idValue) {
                 if (graph.edges.containsKey(idValue))
@@ -131,23 +130,23 @@ public abstract class SpecializedTinkerVertex extends TinkerVertex {
             }
             graph.currentId.set(Long.max(idValue, graph.currentId.get()));
 
-            ElementHelper.legalPropertyKeyValueArray(keyValues);
-            TinkerVertex inVertex = (TinkerVertex) vertex;
-            TinkerVertex outVertex = this;
-            SpecializedTinkerEdge edge = factory.createEdge(idValue, graph, (long) outVertex.id, (long) inVertex.id);
+            Vertex outVertex = this;
+            Edge edge = factory.createEdge(idValue, graph, outVertex, inVertex);
             ElementHelper.attachProperties(edge, keyValues);
+            final Edge edgeRef;
             if (graph.ondiskOverflowEnabled) {
-                graph.getElementRefsByLabel(graph.edgeIdsByLabel, label).add(idValue);
-                graph.edgeCache.put(idValue, edge);
+                edgeRef = new EdgeRef(edge);
             } else {
-                graph.edges.put(idValue, edge);
+                edgeRef = edge;
             }
+            graph.edges.put(edge.id(), edge);
+            graph.getElementsByLabel(graph.edgesByLabel, label).add(edgeRef);
 
             acquireModificationLock();
-            this.addSpecializedOutEdge(edge.label(), edge);
-            ((SpecializedTinkerVertex) inVertex).addSpecializedInEdge(edge.label(), edge);
+            addSpecializedOutEdge(edge);
+            ((SpecializedTinkerVertex) inVertex).addSpecializedInEdge(edge);
             releaseModificationLock();
-            this.modifiedSinceLastSerialization = true;
+            modifiedSinceLastSerialization = true;
             return edge;
         } else { // edge label not registered for a specialized factory, treating as generic edge
             if (graph.usesSpecializedElements) {
@@ -155,25 +154,21 @@ public abstract class SpecializedTinkerVertex extends TinkerVertex {
                     "this instance of TinkerGraph uses specialized elements, but doesn't have a factory for label " + label
                         + ". Mixing specialized and generic elements is not (yet) supported");
             }
-            return super.addEdge(label, vertex, keyValues);
+            return super.addEdge(label, inVertex, keyValues);
         }
     }
 
     /** do not call directly (other than from deserializer)
      *  I whish there was an easy way to forbid this in java */
-    public abstract void addSpecializedOutEdge(String edgeLabel, Edge edge);
+    public abstract void addSpecializedOutEdge(SpecializedTinkerEdge edge);
 
     /** do not call directly (other than from deserializer)
      *  I whish there was an easy way to forbid this in java */
-    public abstract void addSpecializedInEdge(String edgeLabel, Edge edge);
+    public abstract void addSpecializedInEdge(SpecializedTinkerEdge edge);
 
-    @Override
-    public Iterator<Edge> edges(final Direction direction, final String... edgeLabels) {
-        return graph.edgesById(specificEdges(direction, edgeLabels));
-    }
+    public abstract void removeSpecializedOutEdge(SpecializedTinkerEdge edge);
 
-    /* implement in concrete specialised instance to avoid using generic HashMaps */
-    protected abstract TLongIterator specificEdges(final Direction direction, final String... edgeLabels);
+    public abstract void removeSpecializedInEdge(SpecializedTinkerEdge edge);
 
     @Override
     public Iterator<Vertex> vertices(final Direction direction, final String... edgeLabels) {
@@ -189,37 +184,11 @@ public abstract class SpecializedTinkerVertex extends TinkerVertex {
         }
     }
 
-    public void removeOutEdge(long edgeId) {
-        removeSpecificOutEdge(edgeId);
-    }
-
-    protected abstract void removeSpecificOutEdge(Long edgeId);
-
-    public void removeInEdge(long edgeId) {
-        removeSpecificInEdge(edgeId);
-    }
-
-    protected abstract void removeSpecificInEdge(Long edgeId);
-
     @Override
     public void remove() {
         super.remove();
-        acquireModificationLock();
-        Long id = (Long) this.id();
-
-        if (graph.ondiskOverflowEnabled) {
-            this.graph.vertexCache.remove(id);
-            this.graph.vertexIdsByLabel.get(label()).remove(id);
-            this.graph.onDiskVertexOverflow.remove(id);
-        }
-        this.graph.vertices.remove(id);
-        edges(Direction.BOTH).forEachRemaining(Element::remove);
-
         this.modifiedSinceLastSerialization = true;
-        releaseModificationLock();
     }
-
-    public abstract Map<String, TLongSet> edgeIdsByLabel(Direction direction);
 
     public boolean isModifiedSinceLastSerialization() {
         return modifiedSinceLastSerialization;

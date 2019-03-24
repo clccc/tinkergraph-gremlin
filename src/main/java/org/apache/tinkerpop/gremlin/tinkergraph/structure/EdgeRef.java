@@ -5,44 +5,25 @@ import org.apache.tinkerpop.gremlin.structure.*;
 import java.io.IOException;
 import java.util.Iterator;
 
-public class EdgeRef extends ElementRef<TinkerEdge> implements Edge {
+public class EdgeRef extends ElementRef<Edge> implements Edge {
 
-  public EdgeRef(SpecializedTinkerEdge Edge) {
-    super(Edge);
+  public EdgeRef(Edge edge) {
+    super(edge);
   }
 
-  public EdgeRef(final long edgeId, final TinkerGraph graph) {
-    super(edgeId, graph);
-  }
-
-  @Override
-  protected TinkerEdge readFromDisk(final long edgeId) throws IOException {
-    return (TinkerEdge) graph.ondiskOverflow.readEdge(edgeId);
-  }
-  
-  @Override
-  public Object id() {
-    return this.get().id();
+  public EdgeRef(final long edgeId, final String label, final TinkerGraph graph) {
+    super(edgeId, label, graph);
   }
 
   @Override
-  public String label() {
-    return this.get().label();
+  protected Edge readFromDisk(final long edgeId) throws IOException {
+    return graph.ondiskOverflow.readEdge(edgeId);
   }
 
-  @Override
-  public Graph graph() {
-    return this.get().graph();
-  }
-
+  // delegate methods start
   @Override
   public <V> Property<V> property(String key, V value) {
     return this.get().property(key, value);
-  }
-
-  @Override
-  public void remove() {
-    this.get().remove();
   }
 
   @Override
@@ -54,4 +35,5 @@ public class EdgeRef extends ElementRef<TinkerEdge> implements Edge {
   public <V> Iterator<Property<V>> properties(String... propertyKeys) {
     return this.get().properties(propertyKeys);
   }
+  // delegate methods end
 }

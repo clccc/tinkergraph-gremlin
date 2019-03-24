@@ -1,7 +1,6 @@
 package org.apache.tinkerpop.gremlin.tinkergraph.storage;
 
 import org.apache.tinkerpop.gremlin.structure.Edge;
-import org.apache.tinkerpop.gremlin.structure.Element;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.apache.tinkerpop.gremlin.tinkergraph.structure.TinkerElement;
 import org.h2.mvstore.MVMap;
@@ -43,30 +42,17 @@ public class OndiskOverflow {
   }
 
   public void persist(final TinkerElement finalizedElement) {
-    // TODO catch and log exceptions
-    final Serializer<? extends TinkerElement> serializer;
-    final MVMap<Long, byte[]> mvmap;
-    if (finalizedElement instanceof Vertex) {
-      serializer = vertexSerializer;
-      mvmap = vertexMVMap;
-    } else {
-      serializer = edgeSerializer;
-      mvmap = edgeMVMap;
-    }
-
     final Long id = (Long) finalizedElement.id();
-    // TODO bring back optimization - make work for all elements -> set flag to false during deserialization, set to true for initial construction and any update
-    if (!mvmap.containsKey(id)/* || finalizedElement.isModifiedSinceLastSerialization()*/) {
-      try {
-        serializer.serialize((Element) finalizedElement);
-        mvmap.put(id, serializer.serialize((Element) finalizedElement));
-      } catch (IOException e) {
-          e.printStackTrace();
-          throw new RuntimeException("unable to serialize " + finalizedElement, e);
+    try {
+      if (finalizedElement instanceof Vertex) {
+        vertexMVMap.put(id, vertexSerializer.serialize((Vertex) finalizedElement));
+      } else {
+        edgeMVMap.put(id, edgeSerializer.serialize((Edge) finalizedElement));
       }
-
+    } catch (IOException e) {
+      e.printStackTrace();
+      throw new RuntimeException("unable to serialize " + finalizedElement, e);
     }
-
   }
 
   public Vertex readVertex(final long id) throws IOException {
@@ -81,5 +67,13 @@ public class OndiskOverflow {
   public void close() {
     vertexMVStore.close();
     edgeMVStore.close();
+  }
+
+  public void removeVertex(final Long id) {
+    vertexMVMap.remove(id);
+  }
+
+  public void removeEdge(final Long id) {
+    edgeMVMap.remove(id);
   }
 }
