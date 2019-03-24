@@ -106,7 +106,7 @@ public class Artist extends SpecializedTinkerVertex {
 
 
     @Override
-    public void addSpecializedOutEdge(SpecializedTinkerEdge edge) {
+    public void storeOutEdge(SpecializedTinkerEdge edge) {
         throw new IllegalArgumentException("edge type " + edge.getClass() + " not supported");
     }
 

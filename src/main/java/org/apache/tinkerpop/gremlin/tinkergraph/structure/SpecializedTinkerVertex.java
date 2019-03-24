@@ -18,9 +18,10 @@
  */
 package org.apache.tinkerpop.gremlin.tinkergraph.structure;
 
+import gnu.trove.map.hash.THashMap;
 import org.apache.tinkerpop.gremlin.structure.*;
 import org.apache.tinkerpop.gremlin.structure.util.ElementHelper;
-import org.apache.tinkerpop.gremlin.util.iterator.IteratorUtils;
+import org.apache.tinkerpop.gremlin.util.iterator.MultiIterator;
 
 import java.util.*;
 import java.util.concurrent.Semaphore;
@@ -28,20 +29,26 @@ import java.util.stream.StreamSupport;
 
 public abstract class SpecializedTinkerVertex extends TinkerVertex {
 
-    private final Set<String> specificKeys;
+    /** property keys for a specialized vertex  */
+    protected abstract Set<String> specificKeys();
+
+    public abstract Set<String> allowedOutEdgeLabels();
+    public abstract Set<String> allowedInEdgeLabels();
+
+    protected Map<String, List<Edge>> outEdgesByLabel;
+    protected Map<String, List<Edge>> inEdgesByLabel;
 
     /** `dirty` flag for serialization to avoid superfluous serialization */
     private boolean modifiedSinceLastSerialization = true;
     private Semaphore modificationSemaphore = new Semaphore(1);
 
-    protected SpecializedTinkerVertex(long id, String label, TinkerGraph graph, Set<String> specificKeys) {
+    protected SpecializedTinkerVertex(long id, String label, TinkerGraph graph) {
         super(id, label, graph);
-        this.specificKeys = specificKeys;
     }
 
     @Override
     public Set<String> keys() {
-        return specificKeys;
+        return specificKeys();
     }
 
     @Override
@@ -69,7 +76,7 @@ public abstract class SpecializedTinkerVertex extends TinkerVertex {
     public <V> Iterator<VertexProperty<V>> properties(String... propertyKeys) {
         if (this.removed) return Collections.emptyIterator();
         if (propertyKeys.length == 0) { // return all properties
-            return (Iterator) specificKeys.stream().flatMap(key ->
+            return (Iterator) specificKeys().stream().flatMap(key ->
                 StreamSupport.stream(Spliterators.spliteratorUnknownSize(
                   specificProperties(key), Spliterator.ORDERED),false)
             ).iterator();
@@ -116,10 +123,15 @@ public abstract class SpecializedTinkerVertex extends TinkerVertex {
         if (this.removed) {
             throw elementAlreadyRemoved(Vertex.class, this.id);
         }
+        if (!allowedOutEdgeLabels().contains(label)) {
+            throw new IllegalArgumentException(getClass().getName() + " doesn't allow outgoing edges with label=" + label);
+        }
+        if (!((SpecializedTinkerVertex) inVertex).allowedInEdgeLabels().contains(label)) {
+            throw new IllegalArgumentException(inVertex.getClass().getName() + " doesn't allow incoming edges with label=" + label);
+        }
+        ElementHelper.legalPropertyKeyValueArray(keyValues);
 
         if (graph.specializedEdgeFactoryByLabel.containsKey(label)) {
-            ElementHelper.legalPropertyKeyValueArray(keyValues);
-
             SpecializedElementFactory.ForEdge factory = graph.specializedEdgeFactoryByLabel.get(label);
             Long idValue = (Long) graph.edgeIdManager.convert(ElementHelper.getIdValue(keyValues).orElse(null));
             if (null != idValue) {
@@ -143,8 +155,8 @@ public abstract class SpecializedTinkerVertex extends TinkerVertex {
             graph.getElementsByLabel(graph.edgesByLabel, label).add(edgeRef);
 
             acquireModificationLock();
-            addSpecializedOutEdge(edge);
-            ((SpecializedTinkerVertex) inVertex).addSpecializedInEdge(edge);
+            storeOutEdge(edge);
+            ((SpecializedTinkerVertex) inVertex).storeInEdge(edge);
             releaseModificationLock();
             modifiedSinceLastSerialization = true;
             return edge;
@@ -158,30 +170,57 @@ public abstract class SpecializedTinkerVertex extends TinkerVertex {
         }
     }
 
-    /** do not call directly (other than from deserializer)
-     *  I whish there was an easy way to forbid this in java */
-    public abstract void addSpecializedOutEdge(SpecializedTinkerEdge edge);
+    /** do not call directly (other than from deserializer and SpecializedTinkerVertex.addEdge) */
+    public void storeOutEdge(final Edge edge) {
+        storeEdge(edge, getOutEdgesByLabel());
+    }
+    
+    /** do not call directly (other than from deserializer and SpecializedTinkerVertex.addEdge) */
+    public void storeInEdge(final Edge edge) {
+        storeEdge(edge, getInEdgesByLabel());
+    }
 
-    /** do not call directly (other than from deserializer)
-     *  I whish there was an easy way to forbid this in java */
-    public abstract void addSpecializedInEdge(SpecializedTinkerEdge edge);
+    private void storeEdge(final Edge edge, final Map<String, List<Edge>> edgesByLabel) {
+        if (!edgesByLabel.containsKey(edge.label())) {
+            // TODO ArrayLists aren't good for concurrent modification, use memory-light concurrency safe list
+            edgesByLabel.put(edge.label(), new ArrayList<>());
+        }
+        edgesByLabel.get(edge.label()).add(edge);
+    }
 
-    public abstract void removeSpecializedOutEdge(SpecializedTinkerEdge edge);
-
-    public abstract void removeSpecializedInEdge(SpecializedTinkerEdge edge);
 
     @Override
-    public Iterator<Vertex> vertices(final Direction direction, final String... edgeLabels) {
-        Iterator<Edge> edges = edges(direction, edgeLabels);
-        if (direction == Direction.IN) {
-            return IteratorUtils.map(edges, Edge::outVertex);
-        } else if (direction == Direction.OUT) {
-            return IteratorUtils.map(edges, Edge::inVertex);
-        } else if (direction == Direction.BOTH) {
-            return IteratorUtils.concat(vertices(Direction.IN, edgeLabels), vertices(Direction.OUT, edgeLabels));
+    public Iterator<Edge> edges(final Direction direction, final String... edgeLabels) {
+        final MultiIterator<Edge> multiIterator = new MultiIterator<>();
+
+        if (edgeLabels.length == 0) { // follow all labels
+            getOutEdgesByLabel().values().forEach(edges -> multiIterator.addIterator(edges.iterator()));
+            getInEdgesByLabel().values().forEach(edges -> multiIterator.addIterator(edges.iterator()));
         } else {
-            return Collections.emptyIterator();
+            for (String label : edgeLabels) {
+                if (direction.equals(Direction.OUT) || direction.equals(Direction.BOTH)) {
+                    multiIterator.addIterator(getOutEdgesByLabel().get(label).iterator());
+                } else if (direction.equals(Direction.IN) || direction.equals(Direction.BOTH)) {
+                    multiIterator.addIterator(getInEdgesByLabel().get(label).iterator());
+                }
+            }
         }
+        
+        return multiIterator;
+    }
+    
+    protected Map<String, List<Edge>> getOutEdgesByLabel() {
+        if (outEdgesByLabel == null) {
+            this.outEdgesByLabel = new THashMap<>();
+        }
+        return outEdgesByLabel;
+    }
+    
+    protected Map<String, List<Edge>> getInEdgesByLabel() {
+        if (inEdgesByLabel == null) {
+            this.inEdgesByLabel = new THashMap<>();
+        }
+        return inEdgesByLabel;
     }
 
     @Override

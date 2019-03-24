@@ -99,14 +99,14 @@ public class VertexSerializer extends Serializer<Vertex> {
     inEdgeIdsByLabel.entrySet().stream().forEach(entry -> {
       String edgeLabel = entry.getKey();
       for (long edgeId : entry.getValue()) {
-        vertex.addSpecializedInEdge(edgeLabel, new EdgeRef(edgeId, edgeLabel, graph));
+        vertex.storeInEdge(new EdgeRef(edgeId, edgeLabel, graph));
       }
     });
 
     outEdgeIdsByLabel.entrySet().stream().forEach(entry -> {
       String edgeLabel = entry.getKey();
       for (long edgeId : entry.getValue()) {
-        vertex.addSpecializedOutEdge(edgeLabel, new EdgeRef(edgeId, edgeLabel, graph));
+        vertex.storeOutEdge(new EdgeRef(edgeId, edgeLabel, graph));
       }
     });
 
