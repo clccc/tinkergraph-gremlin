@@ -116,9 +116,12 @@ public abstract class SpecializedTinkerVertex extends TinkerVertex {
     protected abstract void removeSpecificProperty(String key);
 
     @Override
-    public Edge addEdge(String label, Vertex inVertex, Object... keyValues) {
+    public Edge addEdge(final String label, Vertex inVertex, final Object... keyValues) {
         if (null == inVertex) {
             throw Graph.Exceptions.argumentCanNotBeNull("inVertex");
+        }
+        if (inVertex instanceof VertexRef) {
+            inVertex = ((VertexRef) inVertex).get();
         }
         if (this.removed) {
             throw elementAlreadyRemoved(Vertex.class, this.id);

@@ -36,7 +36,7 @@ public class Song extends SpecializedTinkerVertex implements Serializable {
     public static final String PERFORMANCES = "performances";
     public static final Set<String> SPECIFIC_KEYS = new HashSet<>(Arrays.asList(NAME, SONG_TYPE, PERFORMANCES));
     public static final Set<String> ALLOWED_OUT_EDGE_LABELS = new HashSet<>(Arrays.asList("followedBy", "sungBy", "writtenBy"));
-    public static final Set<String> ALLOWED_IN_EDGE_LABELS = new HashSet<>();
+    public static final Set<String> ALLOWED_IN_EDGE_LABELS = new HashSet<>(Arrays.asList("followedBy"));
 
     // properties
     private String name;
