@@ -25,6 +25,7 @@ import org.apache.tinkerpop.gremlin.util.iterator.MultiIterator;
 
 import java.util.*;
 import java.util.concurrent.Semaphore;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 public abstract class SpecializedTinkerVertex extends TinkerVertex {
@@ -225,6 +226,24 @@ public abstract class SpecializedTinkerVertex extends TinkerVertex {
             this.inEdgesByLabel = new THashMap<>();
         }
         return inEdgesByLabel;
+    }
+
+    protected <E extends SpecializedTinkerEdge> List<E> specializedEdges(final Direction direction, final String label) {
+        final Map<String, List<Edge>> edgesByLabel;
+        if (direction == Direction.OUT) {
+            edgesByLabel = getOutEdgesByLabel();
+        } else if (direction == Direction.IN) {
+            edgesByLabel = getInEdgesByLabel();
+        } else {
+            throw new IllegalArgumentException("not implemented");
+        }
+
+        return edgesByLabel.get(label).stream().map(edge -> {
+            if (edge instanceof EdgeRef) {
+                edge = ((EdgeRef) edge).get();
+            }
+            return (E) edge;
+        }).collect(Collectors.toList());
     }
 
     @Override

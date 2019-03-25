@@ -18,18 +18,10 @@
  */
 package org.apache.tinkerpop.gremlin.tinkergraph.structure.specialized.gratefuldead;
 
-import gnu.trove.iterator.TLongIterator;
-import gnu.trove.set.TLongSet;
-import gnu.trove.set.hash.TLongHashSet;
-import org.apache.commons.lang3.NotImplementedException;
 import org.apache.tinkerpop.gremlin.structure.Direction;
-import org.apache.tinkerpop.gremlin.structure.Edge;
 import org.apache.tinkerpop.gremlin.structure.VertexProperty;
-import org.apache.tinkerpop.gremlin.tinkergraph.storage.org.apache.tinkerpop.gremlin.util.iterator.TLongMultiIterator;
 import org.apache.tinkerpop.gremlin.tinkergraph.structure.*;
 import org.apache.tinkerpop.gremlin.util.iterator.IteratorUtils;
-
-import java.io.Serializable;
 import java.util.*;
 
 public class Artist extends SpecializedTinkerVertex {
@@ -37,19 +29,26 @@ public class Artist extends SpecializedTinkerVertex {
 
     public static final String NAME = "name";
     public static final Set<String> SPECIFIC_KEYS = new HashSet<>(Arrays.asList(NAME));
+    public static final Set<String> ALLOWED_IN_EDGE_LABELS = new HashSet<>(Arrays.asList(SungBy.label, WrittenBy.label));
     public static final Set<String> ALLOWED_OUT_EDGE_LABELS = new HashSet<>();
-    public static final Set<String> ALLOWED_IN_EDGE_LABELS = new HashSet<>(Arrays.asList("sungBy", "writtenBy"));
 
     // properties
     private String name;
 
-    // edges
-    public static final String[] ALL_EDGES = new String[] {WrittenBy.label, SungBy.label};
-    private TLongSet sungByIn = new TLongHashSet();
-    private TLongSet writtenByIn = new TLongHashSet();
-
     public Artist(Long id, TinkerGraph graph) {
         super(id, Artist.label, graph);
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public List<SungBy> sungByIn() {
+        return specializedEdges(Direction.IN, SungBy.label);
+    }
+
+    public List<WrittenBy> writtenByIn() {
+        return specializedEdges(Direction.IN, WrittenBy.label);
     }
 
     @Override
@@ -109,9 +108,5 @@ public class Artist extends SpecializedTinkerVertex {
             return new Artist(id, graph);
         }
     };
-
-    public String getName() {
-        return name;
-    }
 
 }

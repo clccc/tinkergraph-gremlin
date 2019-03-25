@@ -18,11 +18,9 @@
  */
 package org.apache.tinkerpop.gremlin.tinkergraph.structure.specialized.gratefuldead;
 
+import org.apache.tinkerpop.gremlin.structure.Direction;
 import org.apache.tinkerpop.gremlin.structure.VertexProperty;
-import org.apache.tinkerpop.gremlin.tinkergraph.structure.SpecializedElementFactory;
-import org.apache.tinkerpop.gremlin.tinkergraph.structure.SpecializedTinkerVertex;
-import org.apache.tinkerpop.gremlin.tinkergraph.structure.TinkerGraph;
-import org.apache.tinkerpop.gremlin.tinkergraph.structure.TinkerVertexProperty;
+import org.apache.tinkerpop.gremlin.tinkergraph.structure.*;
 import org.apache.tinkerpop.gremlin.util.iterator.IteratorUtils;
 
 import java.io.Serializable;
@@ -35,8 +33,8 @@ public class Song extends SpecializedTinkerVertex implements Serializable {
     public static final String SONG_TYPE = "songType";
     public static final String PERFORMANCES = "performances";
     public static final Set<String> SPECIFIC_KEYS = new HashSet<>(Arrays.asList(NAME, SONG_TYPE, PERFORMANCES));
-    public static final Set<String> ALLOWED_OUT_EDGE_LABELS = new HashSet<>(Arrays.asList("followedBy", "sungBy", "writtenBy"));
-    public static final Set<String> ALLOWED_IN_EDGE_LABELS = new HashSet<>(Arrays.asList("followedBy"));
+    public static final Set<String> ALLOWED_IN_EDGE_LABELS = new HashSet<>(Arrays.asList(FollowedBy.label));
+    public static final Set<String> ALLOWED_OUT_EDGE_LABELS = new HashSet<>(Arrays.asList(FollowedBy.label, SungBy.label, WrittenBy.label));
 
     // properties
     private String name;
@@ -45,6 +43,34 @@ public class Song extends SpecializedTinkerVertex implements Serializable {
 
     public Song(Long id, TinkerGraph graph) {
         super(id, Song.label, graph);
+    }
+
+    public List<FollowedBy> followedByIn() {
+        return specializedEdges(Direction.IN, FollowedBy.label);
+    }
+
+    public List<FollowedBy> followedByOut() {
+        return specializedEdges(Direction.OUT, FollowedBy.label);
+    }
+    
+    public List<SungBy> sungByOut() {
+        return specializedEdges(Direction.OUT, SungBy.label);
+    }
+    
+    public List<WrittenBy> writtenByOut() {
+        return specializedEdges(Direction.OUT, WrittenBy.label);
+    }
+    
+    public String getName() {
+        return name;
+    }
+
+    public String getSongType() {
+        return songType;
+    }
+
+    public Integer getPerformances() {
+        return performances;
     }
 
     @Override
@@ -118,15 +144,4 @@ public class Song extends SpecializedTinkerVertex implements Serializable {
         }
     };
 
-    public String getName() {
-        return name;
-    }
-
-    public String getSongType() {
-        return songType;
-    }
-
-    public Integer getPerformances() {
-        return performances;
-    }
 }
