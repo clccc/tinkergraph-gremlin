@@ -96,7 +96,8 @@ public class SpecializedElementsWithOndiskTest {
 
         List<Vertex> garcias = graph.traversal().V().has("name", "Garcia").toList();
         assertEquals(garcias.size(), 1);
-        Artist garcia = (Artist) garcias.get(0); //it's actually of type `Artist`, not (only) `Vertex`
+        VertexRef vertexRef = (VertexRef) garcias.get(0); // Tinkergraph returns VertexRefs for overflow
+        Artist garcia = (Artist) vertexRef.get(); //it's actually of type `Artist`, not (only) `Vertex`
         assertEquals("Garcia", garcia.getName());
         graph.close();
     }
