@@ -109,8 +109,10 @@ public class SpecializedElementsWithOndiskTest {
 
         // inE
         assertEquals(4, __(garcia).inE(WrittenBy.label).toList().size());
+        assertEquals(4, __(garcia).inE(WrittenBy.label).outV().toList().size());
 
         // in
+        assertEquals(4, __(garcia).in(WrittenBy.label).toList().size());
         List<Vertex> songsWritten = __(garcia).in(WrittenBy.label).has("name", "CREAM PUFF WAR").toList();
         assertEquals(songsWritten.size(), 1);
         Song song = (Song) songsWritten.get(0); //it's actually of type `Artist`, not (only) `Vertex`

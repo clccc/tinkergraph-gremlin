@@ -21,6 +21,7 @@ package org.apache.tinkerpop.gremlin.tinkergraph.structure;
 import gnu.trove.map.hash.THashMap;
 import org.apache.tinkerpop.gremlin.structure.*;
 import org.apache.tinkerpop.gremlin.structure.util.ElementHelper;
+import org.apache.tinkerpop.gremlin.util.iterator.IteratorUtils;
 import org.apache.tinkerpop.gremlin.util.iterator.MultiIterator;
 
 import java.util.*;
@@ -192,7 +193,6 @@ public abstract class SpecializedTinkerVertex extends TinkerVertex {
         edgesByLabel.get(edge.label()).add(edge);
     }
 
-
     @Override
     public Iterator<Edge> edges(final Direction direction, final String... edgeLabels) {
         final MultiIterator<Edge> multiIterator = new MultiIterator<>();
@@ -204,16 +204,30 @@ public abstract class SpecializedTinkerVertex extends TinkerVertex {
             for (String label : edgeLabels) {
                 /* note: usage of `==` (pointer comparison) over `.equals` (String content comparison) is intentional for performance - use the statically defined strings */
                 if (direction == Direction.OUT || direction == Direction.BOTH) {
-                    multiIterator.addIterator(getOutEdgesByLabel().get(label).iterator());
+                    multiIterator.addIterator(getOutEdgesByLabel(label).iterator());
                 } else if (direction == Direction.IN || direction == Direction.BOTH) {
-                    multiIterator.addIterator(getInEdgesByLabel().get(label).iterator());
+                    multiIterator.addIterator(getInEdgesByLabel(label).iterator());
                 }
             }
         }
         
         return multiIterator;
     }
-    
+
+    @Override
+    public Iterator<Vertex> vertices(final Direction direction, final String... edgeLabels) {
+        Iterator<Edge> edges = edges(direction, edgeLabels);
+        if (direction == Direction.IN) {
+            return IteratorUtils.map(edges, Edge::outVertex);
+        } else if (direction == Direction.OUT) {
+            return IteratorUtils.map(edges, Edge::inVertex);
+        } else if (direction == Direction.BOTH) {
+            return IteratorUtils.concat(vertices(Direction.IN, edgeLabels), vertices(Direction.OUT, edgeLabels));
+        } else {
+            return Collections.emptyIterator();
+        }
+    }
+
     protected Map<String, List<Edge>> getOutEdgesByLabel() {
         if (outEdgesByLabel == null) {
             this.outEdgesByLabel = new THashMap<>();
@@ -226,6 +240,14 @@ public abstract class SpecializedTinkerVertex extends TinkerVertex {
             this.inEdgesByLabel = new THashMap<>();
         }
         return inEdgesByLabel;
+    }
+
+    protected List<Edge> getOutEdgesByLabel(String label) {
+        return getOutEdgesByLabel().getOrDefault(label, new ArrayList<>());
+    }
+
+    protected List<Edge> getInEdgesByLabel(String label) {
+        return getInEdgesByLabel().getOrDefault(label, new ArrayList<>());
     }
 
     protected <E extends SpecializedTinkerEdge> List<E> specializedEdges(final Direction direction, final String label) {
